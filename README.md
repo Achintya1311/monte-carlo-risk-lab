@@ -2,7 +2,7 @@
 
 Prices options and models portfolio risk by simulation, checked against closed-form solutions so the numbers are verifiable rather than merely plausible.
 
-**Status:** Not started · Next: Day 1 - vectorized seeded GBM simulator
+**Status:** Last checkpoint 2026-09-14 · Next: Day 2 - European option pricing by Monte Carlo and Black-Scholes closed form, with a convergence plot as N grows
 
 ## What this is
 
@@ -47,6 +47,7 @@ Both match closed form to well within Monte Carlo sampling error at that N, whic
 <!-- CHECKPOINTS:START -->
 | Date | Commit | What changed | Next |
 |------|--------|--------------|------|
+| 2026-09-14 | `616f40b` | Day 1: vectorized, seed-controlled GBM path simulator (mcsim/gbm.py) using the exact lognormal update, no per-path Python loop, and a mcsim.simulate CLI that reports sample vs. closed-form terminal-price moments. At N=1e6 (spot=100, vol=0.25, rate=0.07, 30d, seed=42) sample mean is within -0.0007% of theory and log-return std matches to 4 decimals; at N=1000 the same run drifts to +0.40%, recorded in the README as the expected small-N behavior. 20 new tests pass (shape/reproducibility/positivity/invalid-input/statistical-convergence for the simulator, plus CLI subprocess tests including CSV output). | Day 2 - European option pricing by Monte Carlo and Black-Scholes closed form, with a convergence plot as N grows |
 <!-- CHECKPOINTS:END -->
 
 ## Limitations and what would make me wrong
