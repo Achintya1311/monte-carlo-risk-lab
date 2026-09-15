@@ -2,7 +2,7 @@
 
 Prices options and models portfolio risk by simulation, checked against closed-form solutions so the numbers are verifiable rather than merely plausible.
 
-**Status:** Last checkpoint 2026-09-14 · Next: Day 2 - European option pricing by Monte Carlo and Black-Scholes closed form, with a convergence plot as N grows
+**Status:** Last checkpoint 2026-09-15 · Next: Day 3 - variance reduction: antithetic and control variates, with a standard-error reduction table showing what each bought
 
 ## What this is
 
@@ -56,6 +56,7 @@ Both sit comfortably inside the 4-sigma gate the CLI checks. The convergence plo
 <!-- CHECKPOINTS:START -->
 | Date | Commit | What changed | Next |
 |------|--------|--------------|------|
+| 2026-09-15 | `a105c78` | Day 2: European option pricing, Monte Carlo vs Black-Scholes (mcsim/blackscholes.py, mcsim/pricing.py, mcsim/convergence.py) wired into a new mcsim.price CLI reporting the MC-BS gap in standard errors, with a --convergence-plot sweeping N=1e2..1e6. Black-Scholes checked against a Hull textbook value and put-call parity to float precision; MC pricer built on the Day 1 GBM simulator, discounted payoffs unbiased for BS by construction. At spot=100/strike=105/vol=0.25/rate=0.07/30d/seed=42, N=1e6: call -0.88 std errors from BS, put -0.45 std errors, both inside the 4-sigma gate. Convergence plot shows the 95% CI band collapsing onto the BS line from a wild N=100 swing down to visually indistinguishable by N=1e5. 26 new tests pass (46/46 total); both call and put CLI runs executed by hand at N=1e6 with plots generated and inspected. Also found and fixed this repo's own local main branch stuck in a stale detached HEAD (same class of issue prior checkpoints hit) before committing. | Day 3 - variance reduction: antithetic and control variates, with a standard-error reduction table showing what each bought |
 | 2026-09-14 | `616f40b` | Day 1: vectorized, seed-controlled GBM path simulator (mcsim/gbm.py) using the exact lognormal update, no per-path Python loop, and a mcsim.simulate CLI that reports sample vs. closed-form terminal-price moments. At N=1e6 (spot=100, vol=0.25, rate=0.07, 30d, seed=42) sample mean is within -0.0007% of theory and log-return std matches to 4 decimals; at N=1000 the same run drifts to +0.40%, recorded in the README as the expected small-N behavior. 20 new tests pass (shape/reproducibility/positivity/invalid-input/statistical-convergence for the simulator, plus CLI subprocess tests including CSV output). | Day 2 - European option pricing by Monte Carlo and Black-Scholes closed form, with a convergence plot as N grows |
 <!-- CHECKPOINTS:END -->
 
