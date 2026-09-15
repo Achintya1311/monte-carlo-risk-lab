@@ -51,6 +51,18 @@ At spot=100, strike=105, vol=0.25, rate=0.07, 30 days, seed=42, N=1,000,000:
 
 Both sit comfortably inside the 4-sigma gate the CLI checks. The convergence plot (`outputs/convergence_{call,put}.png`, gitignored - regenerate with `--convergence-plot`) sweeps N = 10²...10⁶ at the same seed and shows the 95% CI band collapsing onto the Black-Scholes line: at N=100 the call price and its CI swing wildly (1.27 ± 0.59), by N=10⁴ the CI is already tight around the true value, and N≥10⁵ is visually indistinguishable from the reference line. That is the expected 1/sqrt(N) shrinkage of Monte Carlo error, not a smoothed illustration of it.
 
+**Day 3 - variance reduction: antithetic and control variates.** `mcsim.variance_reduction` adds two estimators, each measured against the plain Day 2 estimator at the *same* path budget so the payoff is a standard-error reduction at fixed simulation cost, not a smaller number from spending more paths. Antithetic pairs each draw `Z` with `-Z` and averages the two payoffs before taking the sample variance - negatively correlated because the payoff is monotone in the terminal price. Control variate uses the discounted terminal price itself, `exp(-rate*T)*S_T`, whose mean under the risk-neutral drift is known exactly (`spot`, no simulation needed for it), with the optimal coefficient `c* = Cov(X,Y)/Var(X)` estimated from the same sample. `mcsim.reduce` is the CLI that runs all three at one N and prints the table.
+
+At spot=100, strike=105, vol=0.25, rate=0.07, 30 days, seed=42, N=1,000,000:
+
+| Method | Call price | Call std err | Reduction | Put price | Put std err | Reduction |
+|---|---|---|---|---|---|---|
+| Plain (Day 2) | 1.822341 | 0.003912 | 1.00x | 5.951674 | 0.006128 | 1.00x |
+| Antithetic | 1.827980 | 0.003472 | 1.13x | 5.956020 | 0.002746 | 2.23x |
+| Control variate | 1.826732 | 0.002481 | 1.58x | 5.955368 | 0.002481 | 2.47x |
+
+All six prices sit within 1 standard error of the Black-Scholes references (call 1.825800, put 5.954436) - variance reduction did not introduce bias, only tightened the estimate. Control variate wins on both legs at this N; antithetic's edge is much weaker for the call (1.13x) than the put (2.23x) here, which is exactly the known failure mode: antithetic pairing helps most when the payoff is close to linear (or symmetric) in `Z` over the range that matters, and a call's payoff is flatter than a put's near this strike/vol/horizon, so pairing buys less. Neither technique is free lunch across every configuration, which is why the table is generated fresh per run rather than asserted as a fixed multiplier.
+
 ## Checkpoint log
 
 <!-- CHECKPOINTS:START -->
@@ -66,6 +78,9 @@ Both sit comfortably inside the 4-sigma gate the CLI checks. The convergence plo
 - The simulator uses a fixed default seed (42) for reproducibility across runs, not a fresh seed per invocation. That is deliberate for testability but means two "runs" with default arguments are the same run, not independent draws - pass `--seed` explicitly to get a new sample.
 - The convergence plot is one realization per N (same seed, different path count), not an average over repeated runs at each N. The shrinking CI band is the right qualitative picture, but a single low-N point (see N=100 in the Day 2 findings above) can land anywhere inside its own wide interval - it is not a smoothed regression line.
 - The Day 2 correctness gate is a fixed 4-standard-error band on a single seeded run, not a full backtest across seeds. A model with a real bug could still get lucky and land inside 4 sigma once; it would not survive being run at several seeds, which this CLI does not automate yet.
+- Day 3's antithetic and control-variate estimators draw the terminal price directly from the one-step lognormal formula rather than routing through `mcsim.gbm.simulate_gbm_paths`. That is the same distribution (a sum of independent Gaussian increments is Gaussian with the summed variance) but a different draw sequence, so `mcsim.reduce` and `mcsim.price` do not use common random numbers against each other - the comparison in the table is at the same path budget `n_paths`, not against an identical underlying draw.
+- Antithetic variates buy far less for a call than a put at the same strike/vol/horizon (1.13x vs 2.23x at N=1e6 above) because the technique's payoff depends on how linear the option payoff is in `Z` over the relevant range - it is not a fixed multiplier and can occasionally do almost nothing. Neither technique is validated here against deep-ITM/OTM or very short-dated cases where the payoff is closer to a step function and antithetic pairing is known to help less.
+- When every simulated payoff is exactly zero (for example, a strike far enough out of the money that no path in the batch pays off), the plain estimator's own std error is exactly zero, so `sigma = diff / std_error` divides by zero and both `mcsim.price` and `mcsim.reduce` report a spurious "more than 4 standard errors from Black-Scholes" warning even though the price is exactly correct. This is a pre-existing Day 2 edge case, not something Day 3 introduced or fixed - flagged here because `mcsim.reduce` inherits it on all three methods.
 - VaR is a quantile, not a worst case. The number says nothing about the shape of the loss beyond it, which is why CVaR is reported alongside.
 - The commodity leg uses a price series without modelling roll yield in full.
 
