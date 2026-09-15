@@ -42,6 +42,15 @@ Runs offline against committed fixtures by default. Live data needs a key in `.e
 
 Both match closed form to well within Monte Carlo sampling error at that N, which is the whole point of checking every result here against something known before building on it. At N=1,000 the same run drifts to +0.40% relative error, which is expected and is exactly why Day 2's Black-Scholes cross-check will need a real path count, not a demo one.
 
+**Day 2 - European option pricing, MC vs Black-Scholes.** `mcsim.blackscholes.bs_price` is the closed-form oracle (checked against a known Hull textbook value and put-call parity, `C - P = S - K*exp(-rT)`, to float precision). `mcsim.pricing.mc_option_price` discounts simulated terminal payoffs from the Day 1 simulator back to today at the same risk-free rate, so it is unbiased for the BS price by construction - any gap at large N is sampling error, not model mismatch. `mcsim.price` is the CLI that runs both and reports the gap in standard errors, plus an optional `--convergence-plot`.
+
+At spot=100, strike=105, vol=0.25, rate=0.07, 30 days, seed=42, N=1,000,000:
+
+- Call: Black-Scholes 1.825800 vs Monte Carlo 1.822341 (std error 0.003912) - **-0.88 std errors**.
+- Put: Black-Scholes 5.954436 vs Monte Carlo 5.951674 (std error 0.006128) - **-0.45 std errors**.
+
+Both sit comfortably inside the 4-sigma gate the CLI checks. The convergence plot (`outputs/convergence_{call,put}.png`, gitignored - regenerate with `--convergence-plot`) sweeps N = 10²...10⁶ at the same seed and shows the 95% CI band collapsing onto the Black-Scholes line: at N=100 the call price and its CI swing wildly (1.27 ± 0.59), by N=10⁴ the CI is already tight around the true value, and N≥10⁵ is visually indistinguishable from the reference line. That is the expected 1/sqrt(N) shrinkage of Monte Carlo error, not a smoothed illustration of it.
+
 ## Checkpoint log
 
 <!-- CHECKPOINTS:START -->
@@ -54,6 +63,8 @@ Both match closed form to well within Monte Carlo sampling error at that N, whic
 
 - Geometric Brownian motion has thin tails and constant volatility. Real returns have neither, and the Day 1 simulator does not correct for it - that is Day 2+ territory (variance reduction doesn't fix this; a fatter-tailed process would, and this repo doesn't build one).
 - The simulator uses a fixed default seed (42) for reproducibility across runs, not a fresh seed per invocation. That is deliberate for testability but means two "runs" with default arguments are the same run, not independent draws - pass `--seed` explicitly to get a new sample.
+- The convergence plot is one realization per N (same seed, different path count), not an average over repeated runs at each N. The shrinking CI band is the right qualitative picture, but a single low-N point (see N=100 in the Day 2 findings above) can land anywhere inside its own wide interval - it is not a smoothed regression line.
+- The Day 2 correctness gate is a fixed 4-standard-error band on a single seeded run, not a full backtest across seeds. A model with a real bug could still get lucky and land inside 4 sigma once; it would not survive being run at several seeds, which this CLI does not automate yet.
 - VaR is a quantile, not a worst case. The number says nothing about the shape of the loss beyond it, which is why CVaR is reported alongside.
 - The commodity leg uses a price series without modelling roll yield in full.
 
