@@ -44,3 +44,15 @@ def test_cli_rejects_invalid_confidence():
     result = run_cli("--curve", CURVE, "--prices", PRICES, "--horizon-days", "20", "--confidence", "1.5")
     assert result.returncode != 0
     assert "confidence" in (result.stdout + result.stderr).lower()
+
+
+def test_cli_writes_regime_plot(tmp_path):
+    out_path = tmp_path / "curve_regime.png"
+    result = run_cli(
+        "--curve", CURVE, "--prices", PRICES, "--horizon-days", "20", "--confidence", "0.95",
+        "--regime-plot", str(out_path),
+    )
+    assert result.returncode == 0, result.stderr
+    assert out_path.exists()
+    assert out_path.stat().st_size > 0
+    assert "wrote curve regime plot" in result.stdout

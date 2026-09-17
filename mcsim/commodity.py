@@ -89,6 +89,35 @@ def curve_identity_gap(c1: np.ndarray, c2: np.ndarray, c3: np.ndarray, c4: np.nd
     return float(np.max(np.abs(segment_sum - direct)))
 
 
+def plot_curve_regime(basis: np.ndarray, regime: np.ndarray, out_path: str) -> None:
+    """Write a scatter of annualized c1->c4 basis over time, colored by regime.
+
+    Visual counterpart to the regime mix and VaR-by-regime table: the basis
+    crossing zero is exactly where ``classify_regime`` flips label, so the
+    two views must agree by construction, not just by eye.
+    """
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    x = np.arange(len(basis))
+    colors = {"contango": "#dd8452", "backwardation": "#4c72b0", "flat": "#888888"}
+
+    fig, ax = plt.subplots(figsize=(10, 4))
+    ax.axhline(0.0, color="black", linewidth=0.8)
+    for label, color in colors.items():
+        mask = regime == label
+        if mask.any():
+            ax.scatter(x[mask], basis[mask], s=4, color=color, label=f"{label} ({int(mask.sum())}d)")
+    ax.set_xlabel("trading day index")
+    ax.set_ylabel("annualized c1→c4 basis (log-carry)")
+    ax.set_title("WTI futures curve regime over the fixture window")
+    ax.legend(markerscale=3, loc="upper right")
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+
+
 def regime_summary(regime: np.ndarray) -> dict:
     """Counts, shares, and the current label of a per-day regime array."""
     total = len(regime)

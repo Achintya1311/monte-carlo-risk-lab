@@ -38,6 +38,19 @@ def load_daily_log_returns(csv_path: str) -> np.ndarray:
     return np.diff(np.log(load_closes(csv_path)))
 
 
+def load_dates(csv_path: str) -> list[str]:
+    """Read a ``date,close,...`` fixture and return just the date column, in file order.
+
+    ``load_closes``/``load_daily_log_returns`` drop dates entirely, which is
+    fine for fitting a distribution but means nothing downstream can check
+    that two files read this way share the same trading-day calendar in the
+    same order - see ``mcsim.audit`` for the check this makes possible.
+    """
+    with open(csv_path, newline="") as f:
+        reader = csv.DictReader(f)
+        return [row["date"] for row in reader]
+
+
 def annualize(mu_daily: float, sigma_daily: float) -> tuple[float, float]:
     """Scale a daily log-return mean/std to annualized figures (iid assumption)."""
     mu_annual = mu_daily * TRADING_DAYS_PER_YEAR

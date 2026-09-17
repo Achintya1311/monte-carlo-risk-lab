@@ -19,6 +19,7 @@ from mcsim.commodity import (
     classify_regime,
     curve_identity_gap,
     load_curve,
+    plot_curve_regime,
     regime_conditioned_var_cvar,
     regime_summary,
 )
@@ -42,6 +43,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--horizon-days", type=int, default=20, help="risk horizon in trading days (default: 20)")
     parser.add_argument("--confidence", type=float, default=0.95, help="VaR/CVaR confidence level (default: 0.95)")
+    parser.add_argument(
+        "--regime-plot", type=str, default=None,
+        help="optional path to write a PNG scatter of annualized basis over time, colored by regime",
+    )
     return parser
 
 
@@ -61,6 +66,9 @@ def run(args: argparse.Namespace) -> dict:
     window_regime = regime[:-1]
     var_cvar = regime_conditioned_var_cvar(log_returns, window_regime, args.confidence, args.horizon_days)
 
+    if args.regime_plot:
+        plot_curve_regime(basis, regime, args.regime_plot)
+
     return {
         "curve_path": args.curve,
         "prices_path": args.prices,
@@ -73,6 +81,7 @@ def run(args: argparse.Namespace) -> dict:
         "confidence": args.confidence,
         "horizon_days": args.horizon_days,
         "var_cvar": var_cvar,
+        "regime_plot": args.regime_plot,
     }
 
 
@@ -102,6 +111,9 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  {label:>13}: n_windows={row['n_windows']:4d}  (below min sample, not reported)")
         else:
             print(f"  {label:>13}: n_windows={row['n_windows']:4d}  VaR={row['var']:+.4f}  CVaR={row['cvar']:+.4f}")
+
+    if result["regime_plot"]:
+        print(f"wrote curve regime plot ({result['n_days']} days) to {result['regime_plot']}")
 
     return 0
 
