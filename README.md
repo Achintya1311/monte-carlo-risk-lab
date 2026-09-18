@@ -137,6 +137,8 @@ This alignment check is itself a limitation made visible, not a problem fixed: t
 - No option pricing or Monte Carlo simulation is run on the commodity leg - Day 6 only measures the curve and conditions historical VaR/CVaR on it. GBM's constant-volatility assumption (flagged since Day 1) is not re-validated against a commodity series here, and a single global vol fit would be a worse assumption for a series with 77%/22% regime mix than it already is for the single-regime equity fixture.
 - `mcsim.audit`'s causality check only covers `classify_regime` and `annualized_basis`, the two curve-derived functions `mcsim.curve` actually wires up - it does not audit `mcsim.risk`'s VaR/CVaR estimators or the GBM simulator, which are validated by the closed-form and identity checks in Days 1-6 instead. It is also a structural check, not a statistical one: it proves a function does not read the future, not that its output is well-calibrated.
 - `mcsim.audit`'s fixture-alignment check is a snapshot, not an enforced invariant - it confirms the *currently committed* `WTI_futures_curve.csv` and `WTI_C1.csv` share one calendar in order, but nothing in `mcsim.curve` itself calls this check before trusting `window_regime = regime[:-1]`, so a future fixture swap could silently reintroduce the exact misalignment this audit exists to catch unless someone remembers to re-run it.
+- The v0.3 spine contract (`mcsim.portfolio --contract`) publishes `var_95`/`cvar_95` from the historical method only, not parametric or MC, and only at 95% confidence - the 99% figures this same CLI prints to the terminal, where the Kupiec test above actually rejects the parametric model, do not travel into the contract at all. A reader of STOCKSTALKER's screen output who only sees the risk gate's two columns has no way to know the 99% backtest failed; they would have to come back to this README.
+- `max_dd_sim` in the contract is the *mean* of the simulated max-drawdown distribution, not a tail figure - it is on the same footing as `var_95`/`cvar_95` (a central estimate, not a worst case), but nothing in the key name or the schema comment says so, so a downstream reader could reasonably mistake it for the worst simulated drawdown instead.
 
 ## Where this sits
 
@@ -145,12 +147,15 @@ Part of a nine-repo research pipeline. Stock Stalker screens the NSE universe; t
 ```json
 {
   "risk": {
-    "var_95": -0.032,
-    "cvar_95": -0.048,
+    "var_95": -0.09153951300729178,
+    "cvar_95": -0.10824138282998916,
+    "max_dd_sim": -0.05957695876994922,
     "horizon_days": 20
   }
 }
 ```
+
+Written by `python -m mcsim.portfolio --contract <path>` (see `mcsim.portfolio.to_contract`); the numbers above are the actual output against the committed RELIANCE fixture at the CLI's defaults (N=1e6, seed 42), not illustrative placeholders. STOCKSTALKER's `stockstalker.gates.risk` reads this file and attaches it to the matching candidate under the `risk` key `schema/v1.json` reserves.
 
 Communication is by file contract, not imports, so either side can be refactored without breaking the other.
 

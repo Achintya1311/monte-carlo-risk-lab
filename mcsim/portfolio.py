@@ -14,7 +14,9 @@ the closed form cannot see), not different input data.
 from __future__ import annotations
 
 import argparse
+import json
 import sys
+from pathlib import Path
 
 from mcsim.returns import annualize, load_closes, load_daily_log_returns
 from mcsim.risk import (
@@ -49,6 +51,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--drawdown-plot", type=str, default=None,
         help="optional path to write a PNG histogram of the simulated max-drawdown distribution",
+    )
+    parser.add_argument(
+        "--contract",
+        metavar="PATH",
+        default=None,
+        help="write the v0.3 risk contract block (see to_contract()) as JSON to this path, "
+        "for the spine to read as a file -- never as a Python import",
     )
     return parser
 
@@ -106,6 +115,29 @@ def run(args: argparse.Namespace) -> dict:
     }
 
 
+def to_contract(result: dict) -> dict:
+    """The ``risk`` block this repo publishes to the spine (v0.3), matching
+    the shape NEXT_STEPS.md committed to before this module existed:
+    ``{"risk": {"var_95", "cvar_95", "max_dd_sim", "horizon_days"}}``.
+
+    ``var_95``/``cvar_95`` come from the historical method, not parametric or
+    MC -- it is the one of the three that makes no distributional assumption,
+    so it is the number this repo is most willing to stand behind as a file
+    contract read by a repo that never sees the other two for comparison.
+    """
+    row_95 = next((r for r in result["by_confidence"] if r["confidence"] == 0.95), None)
+    if row_95 is None:
+        raise ValueError("--contract requires 0.95 to be one of the --confidence levels")
+    return {
+        "risk": {
+            "var_95": row_95["historical"]["var"],
+            "cvar_95": row_95["historical"]["cvar"],
+            "max_dd_sim": result["drawdown_stats"]["mean"],
+            "horizon_days": result["horizon_days"],
+        }
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -155,6 +187,12 @@ def main(argv: list[str] | None = None) -> int:
 
     if result["drawdown_plot"]:
         print(f"wrote drawdown distribution plot ({dd['n_paths']} paths) to {result['drawdown_plot']}")
+
+    if args.contract:
+        contract_path = Path(args.contract)
+        contract_path.parent.mkdir(parents=True, exist_ok=True)
+        contract_path.write_text(json.dumps(to_contract(result), indent=2) + "\n")
+        print(f"wrote risk contract to {contract_path}")
 
     return 0 if ok else 1
 
