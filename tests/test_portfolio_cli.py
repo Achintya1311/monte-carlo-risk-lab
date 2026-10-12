@@ -5,6 +5,7 @@ import sys
 from mcsim.portfolio import build_parser, run, to_contract
 
 FIXTURE = "fixtures/ohlcv/RELIANCE_NS.csv"
+GULFOILLUB_FIXTURE = "fixtures/ohlcv/GULFOILLUB_NS.csv"
 
 
 def run_cli(*args):
@@ -75,6 +76,21 @@ def test_cli_default_reliance_fixture_kupiec_99pct_is_rejected_and_flagged():
         "--confidence", "0.95", "0.99", "--paths", "50000", "--seed", "42",
     )
     assert "REJECTED" in result.stdout
+    assert result.returncode == 1
+    assert "NOTE" in result.stderr
+
+
+def test_cli_gulfoillub_fixture_kupiec_rejected_at_both_confidences():
+    # GULFOILLUB (the front-door subject, Day 3) has ~11 years of history
+    # (3006 obs) against RELIANCE's 2 (500 obs). More data makes the same
+    # Gaussian-tails problem worse, not better: both 95% and 99% are
+    # rejected here, where RELIANCE's 95% was not. Recorded as-is rather
+    # than tuned away -- see README limitations.
+    result = run_cli(
+        "--fixture", GULFOILLUB_FIXTURE, "--horizon-days", "20",
+        "--confidence", "0.95", "0.99", "--paths", "50000", "--seed", "42",
+    )
+    assert result.stdout.count("REJECTED") == 2
     assert result.returncode == 1
     assert "NOTE" in result.stderr
 
