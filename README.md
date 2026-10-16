@@ -2,7 +2,7 @@
 
 Prices options and models portfolio risk by simulation, checked against closed-form solutions so the numbers are verifiable rather than merely plausible.
 
-**Status:** Last checkpoint 2026-09-18 · Next: fama-french-factor-model Day 1 - Ken French loader with cached fixtures
+**Status:** Complete (Sep 2026). Part of a nine-repo equity research pipeline; [STOCKSTALKER](https://github.com/Achintya1311/STOCKSTALKER) is the front door.
 
 ## What this is
 
