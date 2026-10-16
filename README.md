@@ -1,5 +1,7 @@
 # Monte Carlo risk lab
 
+Educational research on historical data. Not investment advice. Not a SEBI-registered research analyst.
+
 Prices options and models portfolio risk by simulation, checked against closed-form solutions so the numbers are verifiable rather than merely plausible.
 
 **Status:** Complete (Sep 2026). Part of a nine-repo equity research pipeline; [STOCKSTALKER](https://github.com/Achintya1311/STOCKSTALKER) is the front door.
