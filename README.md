@@ -6,6 +6,8 @@ Prices options and models portfolio risk by simulation, checked against closed-f
 
 **Status:** Complete (Sep 2026). Part of a nine-repo equity research pipeline; [STOCKSTALKER](https://github.com/Achintya1311/STOCKSTALKER) is the front door.
 
+*Educational research on historical data. Not investment advice. Not a SEBI-registered research analyst.*
+
 ## What this is
 
 Simulation is easy to do and easy to do wrong. Every result here is validated against something known: Monte Carlo option prices converge to Black-Scholes, and the VaR model reports its own backtest exception count.
