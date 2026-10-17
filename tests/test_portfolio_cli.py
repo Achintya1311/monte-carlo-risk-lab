@@ -109,7 +109,10 @@ def test_to_contract_matches_the_v03_shape_next_steps_committed_to():
     contract = to_contract(result)
     assert set(contract) == {"risk"}
     risk = contract["risk"]
-    assert set(risk) == {"var_95", "cvar_95", "max_dd_sim", "horizon_days"}
+    assert set(risk) == {
+        "var_95", "cvar_95", "max_dd_sim", "horizon_days",
+        "var_99", "cvar_99", "kupiec_95", "kupiec_99",
+    }
     assert risk["horizon_days"] == 20
     row_95 = next(r for r in result["by_confidence"] if r["confidence"] == 0.95)
     assert risk["var_95"] == row_95["historical"]["var"]
@@ -126,6 +129,42 @@ def test_to_contract_requires_a_95pct_confidence_level():
         assert "0.95" in str(exc)
 
 
+# -- Day 6 (R5): the 99% figures and the Kupiec verdict travel in the contract too ----
+
+
+def test_to_contract_requires_a_99pct_confidence_level():
+    result = _run(confidence=[0.95])
+    try:
+        to_contract(result)
+        assert False, "expected ValueError"
+    except ValueError as exc:
+        assert "0.99" in str(exc)
+
+
+def test_to_contract_carries_the_99pct_historical_var_cvar():
+    result = _run()
+    contract = to_contract(result)
+    risk = contract["risk"]
+    row_99 = next(r for r in result["by_confidence"] if r["confidence"] == 0.99)
+    assert risk["var_99"] == row_99["historical"]["var"]
+    assert risk["cvar_99"] == row_99["historical"]["cvar"]
+    # the 99% tail is at least as bad as the 95% tail (more negative or equal)
+    assert risk["var_99"] <= risk["var_95"]
+    assert risk["cvar_99"] <= risk["cvar_95"]
+
+
+def test_to_contract_carries_the_kupiec_verdict_at_both_confidences():
+    result = _run()
+    contract = to_contract(result)
+    risk = contract["risk"]
+    row_95 = next(r for r in result["by_confidence"] if r["confidence"] == 0.95)
+    row_99 = next(r for r in result["by_confidence"] if r["confidence"] == 0.99)
+    assert risk["kupiec_95"] == row_95["kupiec"]
+    assert risk["kupiec_99"] == row_99["kupiec"]
+    assert "reject_at_5pct" in risk["kupiec_95"]
+    assert "reject_at_5pct" in risk["kupiec_99"]
+
+
 def test_cli_writes_the_risk_contract(tmp_path):
     out = tmp_path / "risk_contract.json"
     result = run_cli(
@@ -136,5 +175,8 @@ def test_cli_writes_the_risk_contract(tmp_path):
     assert "wrote risk contract" in result.stdout
 
     contract = json.loads(out.read_text())
-    assert set(contract["risk"]) == {"var_95", "cvar_95", "max_dd_sim", "horizon_days"}
+    assert set(contract["risk"]) == {
+        "var_95", "cvar_95", "max_dd_sim", "horizon_days",
+        "var_99", "cvar_99", "kupiec_95", "kupiec_99",
+    }
     assert contract["risk"]["horizon_days"] == 20
