@@ -1,0 +1,21 @@
+[project]
+name = "mcsim"
+version = "0.1.0"
+description = "Monte Carlo risk lab: option pricing, VaR/CVaR, Kupiec backtest."
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "pandas",
+    "scipy",
+    "matplotlib",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["mcsim*"]
