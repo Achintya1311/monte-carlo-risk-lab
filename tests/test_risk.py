@@ -106,6 +106,33 @@ def test_mc_var_cvar_converges_toward_parametric_at_matching_moments():
     assert mc["cvar"] == pytest.approx(param["cvar"], abs=0.001)
 
 
+def test_simulate_risk_paths_sample_mean_matches_fitted_physical_drift_at_realistic_horizon():
+    """D14: ``simulate_risk_paths`` must not double-apply the GBM convexity
+    correction. ``mu_annual`` passed in is already a *log-return* mean
+    (``mu_daily * 252``, see ``mcsim.returns.annualize``), so the paths'
+    own sample mean log return over the horizon should equal
+    ``mu_daily * horizon_days`` directly. The 1-day case
+    (``test_mc_var_cvar_converges_toward_parametric_at_matching_moments``
+    above) hides this: at horizon_days=1 and mu_daily=0.0 the bias term
+    ``0.5*sigma_annual**2*(horizon_days/252)`` is non-zero but the abs=0.001
+    tolerance there happens to swallow it. At GULFOILLUB's real horizon
+    (20 days) and volatility (sigma_annual~=0.34), the bias
+    (~0.0046, 0.5*0.34**2*20/252) is far larger than the N=500,000 sampling
+    noise (std error of the mean ~=0.00014), so a correctly unbiased
+    simulator must land within a much tighter tolerance than that bias.
+    """
+    mu_daily, sigma_daily = 0.000578, 0.021277  # GULFOILLUB's fitted daily figures (README, Day 3 front-door)
+    horizon_days = 20
+    mu_annual, sigma_annual = mu_daily * 252, sigma_daily * np.sqrt(252)
+    paths = simulate_risk_paths(
+        spot=100.0, mu_annual=mu_annual, sigma_annual=sigma_annual,
+        horizon_days=horizon_days, n_paths=500_000, seed=11,
+    )
+    sample_mean_log_return = float(np.log(paths[:, -1] / 100.0).mean())
+    expected = mu_daily * horizon_days
+    assert sample_mean_log_return == pytest.approx(expected, abs=0.0005)
+
+
 # ---------------------------------------------------------------------------
 # Drawdowns
 # ---------------------------------------------------------------------------

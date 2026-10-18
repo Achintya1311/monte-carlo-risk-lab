@@ -134,6 +134,11 @@ def to_contract(result: dict) -> dict:
     to the console, now carried into the file contract too, so a reader of
     the gated screen or front door no longer has to go back to this repo's
     README to learn whether the VaR model is rejected (R5).
+
+    ``max_dd_sim`` is the *mean* of the simulated max-drawdown distribution
+    (``drawdown_stats["mean"]``), on the same footing as ``var_95``/
+    ``cvar_95`` as a central estimate -- not the worst simulated drawdown or
+    any other tail figure (D14).
     """
     row_95 = next((r for r in result["by_confidence"] if r["confidence"] == 0.95), None)
     if row_95 is None:

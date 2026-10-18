@@ -93,11 +93,24 @@ def simulate_risk_paths(
     """GBM paths under the *physical* drift, for risk measurement rather than pricing.
 
     Same simulator as Days 1-4 (``mcsim.gbm.simulate_gbm_paths``), but the
-    drift passed in is the sample mean return, not a risk-neutral rate -
-    there is no hedgeable payoff here to price under Q, only a real-world
-    loss probability to estimate under P.
+    drift passed in is the sample mean *log* return (``mu_annual =
+    mu_daily * 252``, see ``mcsim.returns.annualize``), not a risk-neutral
+    *rate* - there is no hedgeable payoff here to price under Q, only a
+    real-world loss probability to estimate under P.
+
+    ``simulate_gbm_paths`` always subtracts ``0.5*vol**2*dt`` from its
+    ``rate`` argument to turn an arithmetic growth rate into a log-return
+    mean (correct for Days 1-4, where ``rate`` is the risk-free rate).
+    ``mu_annual`` here is already a log-return mean with no such gap to
+    remove, so passing it straight through would subtract the convexity
+    term a second time (D14). Adding it back before the call cancels that
+    subtraction, so the simulated paths' own mean log return matches
+    ``mu_annual`` exactly, as a physical-measure simulation requires.
     """
-    return simulate_gbm_paths(spot=spot, rate=mu_annual, vol=sigma_annual, days=horizon_days, n_paths=n_paths, seed=seed)
+    return simulate_gbm_paths(
+        spot=spot, rate=mu_annual + 0.5 * sigma_annual**2, vol=sigma_annual,
+        days=horizon_days, n_paths=n_paths, seed=seed,
+    )
 
 
 def mc_var_cvar_from_paths(paths: np.ndarray, spot: float, confidence: float) -> dict:
