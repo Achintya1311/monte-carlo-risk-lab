@@ -43,7 +43,7 @@ uv pip install -r requirements.txt
 python -m mcsim.price --spot 100 --strike 105 --vol 0.25 --rate 0.07 --days 30 --paths 1000000
 ```
 
-Runs offline against committed fixtures by default. Live data needs a key in `.env` (see `.env.example`); the fixture path is the default so nothing blocks on network access.
+This repo is offline-only, against committed fixtures. No code here reads an API key or performs any live fetch; there is no live-data path.
 
 ## Findings
 
