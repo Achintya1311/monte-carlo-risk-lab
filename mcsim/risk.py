@@ -138,6 +138,41 @@ def max_drawdowns(paths: np.ndarray) -> np.ndarray:
     return drawdown.min(axis=1)
 
 
+def realized_drawdown_horizon_matched(closes: np.ndarray, horizon_days: int) -> dict:
+    """Max drawdown over every overlapping ``horizon_days``-length window of the
+    realized price history, instead of over the whole fixture window.
+
+    Comparing the simulated max-drawdown distribution (built at ``horizon_days``)
+    against the single realized drawdown over the *entire* fixture is not
+    apples-to-apples: a multi-year drawdown is mechanically deeper than a 20-day
+    one regardless of tail shape (D20). This uses the same overlapping-window
+    construction ``historical_var_cvar`` already uses for its quantile estimate --
+    adjacent windows share most of their days, so these are not independent draws
+    -- applied to price windows instead of summed log returns. A window spans
+    ``horizon_days + 1`` prices (``horizon_days`` daily returns), the same path
+    length ``simulate_risk_paths`` produces for the same horizon, so the two are
+    genuinely comparable.
+    """
+    if horizon_days <= 0:
+        raise ValueError(f"horizon_days must be positive, got {horizon_days}")
+    window = horizon_days + 1
+    if len(closes) < window:
+        raise ValueError(
+            f"need at least {window} closes for a {horizon_days}-day window, "
+            f"got {len(closes)}"
+        )
+
+    windows = np.lib.stride_tricks.sliding_window_view(closes, window)
+    per_window_dd = max_drawdowns(windows)
+
+    return {
+        "horizon_days": horizon_days,
+        "n_windows": int(len(per_window_dd)),
+        "mean": float(per_window_dd.mean()),
+        "worst": float(per_window_dd.min()),
+    }
+
+
 def drawdown_distribution_stats(drawdowns: np.ndarray) -> dict:
     """Summary of a per-path max-drawdown sample: not one number, a distribution."""
     percentiles = {p: float(np.percentile(drawdowns, p)) for p in (5, 25, 50, 75, 95)}

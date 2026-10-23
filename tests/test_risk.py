@@ -8,6 +8,7 @@ from mcsim.risk import (
     max_drawdowns,
     mc_var_cvar_from_paths,
     parametric_var_cvar,
+    realized_drawdown_horizon_matched,
     simulate_risk_paths,
 )
 
@@ -153,6 +154,37 @@ def test_max_drawdowns_vectorized_over_multiple_paths():
     dd = max_drawdowns(paths)
     assert dd[0] == pytest.approx(0.0)
     assert dd[1] == pytest.approx(-0.2)
+
+
+def test_realized_drawdown_horizon_matched_known_v_shape_single_window():
+    # A single horizon-days window (one V-shape, no overlap to average over):
+    # horizon_matched should equal the plain max-drawdown of that one window.
+    closes = np.array([100.0, 80.0, 90.0])
+    result = realized_drawdown_horizon_matched(closes, horizon_days=2)
+    assert result["horizon_days"] == 2
+    assert result["n_windows"] == 1
+    assert result["mean"] == pytest.approx(-0.2)
+    assert result["worst"] == pytest.approx(-0.2)
+
+
+def test_realized_drawdown_horizon_matched_is_never_deeper_than_the_whole_window():
+    # A short window drawn from a longer, deeper decline can never exceed (in
+    # magnitude) the drawdown of the whole series -- a sanity bound, not a
+    # tautology, since the two are computed by entirely different code paths.
+    closes = np.array([100.0, 90.0, 80.0, 70.0, 60.0, 50.0, 65.0, 80.0])
+    whole_window = float(max_drawdowns(closes.reshape(1, -1))[0])
+    horizon_matched = realized_drawdown_horizon_matched(closes, horizon_days=3)
+    assert horizon_matched["worst"] >= whole_window
+
+
+def test_realized_drawdown_horizon_matched_rejects_too_short_a_fixture():
+    with pytest.raises(ValueError):
+        realized_drawdown_horizon_matched(np.array([100.0, 90.0]), horizon_days=5)
+
+
+def test_realized_drawdown_horizon_matched_rejects_nonpositive_horizon():
+    with pytest.raises(ValueError):
+        realized_drawdown_horizon_matched(np.array([100.0, 90.0, 80.0]), horizon_days=0)
 
 
 def test_drawdown_distribution_stats_worst_is_minimum():

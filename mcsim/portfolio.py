@@ -27,6 +27,7 @@ from mcsim.risk import (
     mc_var_cvar_from_paths,
     parametric_var_cvar,
     plot_drawdown_distribution,
+    realized_drawdown_horizon_matched,
     simulate_risk_paths,
 )
 
@@ -94,6 +95,7 @@ def run(args: argparse.Namespace) -> dict:
     drawdowns = max_drawdowns(paths)
     dd_stats = drawdown_distribution_stats(drawdowns)
     realized_max_dd = float(max_drawdowns(closes.reshape(1, -1))[0])
+    realized_dd_horizon_matched = realized_drawdown_horizon_matched(closes, args.horizon_days)
 
     if args.drawdown_plot:
         plot_drawdown_distribution(drawdowns, args.drawdown_plot)
@@ -111,6 +113,7 @@ def run(args: argparse.Namespace) -> dict:
         "by_confidence": by_confidence,
         "drawdown_stats": dd_stats,
         "realized_max_drawdown": realized_max_dd,
+        "realized_drawdown_horizon_matched": realized_dd_horizon_matched,
         "drawdown_plot": args.drawdown_plot,
     }
 
@@ -185,6 +188,11 @@ def main(argv: list[str] | None = None) -> int:
         + ", ".join(f"p{p}={v:+.4f}" for p, v in dd["percentiles"].items())
     )
     print(f"realized max drawdown over the fixture window (single historical path): {result['realized_max_drawdown']:+.4f}")
+    hm = result["realized_drawdown_horizon_matched"]
+    print(
+        f"realized max drawdown, horizon-matched ({hm['horizon_days']}-day rolling windows, "
+        f"{hm['n_windows']} overlapping): mean={hm['mean']:+.4f} worst={hm['worst']:+.4f}"
+    )
 
     print()
     print("Kupiec proportion-of-failures backtest (1-day parametric VaR vs full historical sample, in-sample)")

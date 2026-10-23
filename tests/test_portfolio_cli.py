@@ -2,7 +2,11 @@ import json
 import subprocess
 import sys
 
+import pytest
+
 from mcsim.portfolio import build_parser, run, to_contract
+from mcsim.returns import load_closes
+from mcsim.risk import max_drawdowns, realized_drawdown_horizon_matched
 
 FIXTURE = "fixtures/ohlcv/RELIANCE_NS.csv"
 GULFOILLUB_FIXTURE = "fixtures/ohlcv/GULFOILLUB_NS.csv"
@@ -55,6 +59,56 @@ def test_cli_writes_drawdown_plot(tmp_path):
     assert out.exists()
     assert out.stat().st_size > 0
     assert "wrote drawdown distribution plot" in result.stdout
+
+
+def test_realized_max_drawdown_stays_computed_over_the_whole_fixture_window():
+    # Characterizes existing, deliberately-kept behavior (D20): this is the
+    # whole-window figure, distinct from -- and never replacing -- the new
+    # horizon-matched one below.
+    result = _run(horizon_days=20)
+    closes = load_closes(FIXTURE)
+    expected_whole_window = float(max_drawdowns(closes.reshape(1, -1))[0])
+    assert result["realized_max_drawdown"] == pytest.approx(expected_whole_window)
+    assert result["realized_max_drawdown"] != pytest.approx(
+        result["realized_drawdown_horizon_matched"]["worst"]
+    )
+
+
+def test_run_adds_the_horizon_matched_drawdown_stat_next_to_the_whole_window_one():
+    result = _run(horizon_days=20)
+    closes = load_closes(FIXTURE)
+    expected = realized_drawdown_horizon_matched(closes, horizon_days=20)
+    assert result["realized_drawdown_horizon_matched"] == expected
+    # D20's own reproduced evidence for RELIANCE: rolling-20d worst is far
+    # shallower than the whole-window figure, and close to the simulated
+    # worst-of-paths rather than the multi-year realized drawdown.
+    assert result["realized_drawdown_horizon_matched"]["worst"] == pytest.approx(-0.13301517415010156)
+    assert result["realized_max_drawdown"] == pytest.approx(-0.23868496093371794)
+
+
+def test_cli_prints_the_horizon_matched_drawdown_line():
+    result = run_cli(
+        "--fixture", FIXTURE, "--horizon-days", "20", "--confidence", "0.95",
+        "--paths", "50000", "--seed", "42",
+    )
+    assert result.returncode in (0, 1), result.stderr
+    assert "horizon-matched" in result.stdout
+    assert "20-day rolling windows" in result.stdout
+
+
+def test_horizon_matched_drawdown_not_in_the_risk_contract(tmp_path):
+    # D20 scoped this to README/CLI only -- the file contract keeps its
+    # existing v0.3+R5 shape unchanged.
+    out = tmp_path / "risk_contract.json"
+    run_cli(
+        "--fixture", FIXTURE, "--horizon-days", "20", "--confidence", "0.95", "0.99",
+        "--paths", "50000", "--seed", "42", "--contract", str(out),
+    )
+    contract = json.loads(out.read_text())
+    assert set(contract["risk"]) == {
+        "var_95", "cvar_95", "max_dd_sim", "horizon_days",
+        "var_99", "cvar_99", "kupiec_95", "kupiec_99",
+    }
 
 
 def test_cli_rejects_invalid_confidence():
