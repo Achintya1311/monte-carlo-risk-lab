@@ -5,6 +5,7 @@ Educational research on historical data. Not investment advice. Not a SEBI-regis
 **Question:** does a Gaussian (parametric) 1-day Value-at-Risk model actually hold up against the real exception rate, once it's backtested rather than just computed?
 **Method:** Kupiec (1995) proportion-of-failures backtest of the parametric VaR against historical/parametric/Monte Carlo VaR-CVaR estimators built from the same fitted return sample, at 95% and 99% confidence.
 **Finding (Day 5):** the Kupiec test rejects the 1-day parametric VaR at 99% confidence (10/500 exceptions vs. 5.0 expected, LR=3.914, p=0.048) — Gaussian tails are too thin exactly where 99% VaR lives.
+**Fix (v2, 24 Oct 2026):** the rejection was real and its cause is constant volatility. Out of sample, a rolling GARCH(1,1) with Student-t innovations passes Kupiec and Christoffersen conditional coverage at 95% and 99% on GULFOILLUB (2,506 test days, 99% breaches 21 vs 25.1 expected, Kupiec p = 0.40, conditional coverage p = 0.59), while the constant-volatility Gaussian fails the same test (42 breaches vs 25.1, p = 0.002). Criteria were written before the run: `docs/PREREG_oos_var.md`. Reproduce: `python -m mcsim.oosvar --window 500`.
 **Chart:** `outputs/drawdown_dist.png` (`--drawdown-plot`) — the simulated 1e6-path max-drawdown distribution.
 **Reproduce:** `python -m mcsim.portfolio`
 
@@ -118,6 +119,21 @@ The fixture genuinely contains both regimes, not one cherry-picked to tell a cle
 
 This alignment check is itself a limitation made visible, not a problem fixed: the pipeline still assumes positional alignment rather than joining on date, so a future fixture refresh that changes either file's calendar would need to pass this audit again before being trusted, and nothing prevents someone from skipping that step.
 
+## Out-of-sample VaR: constant volatility fails, GARCH-t passes (24 Oct 2026)
+
+The in-sample Kupiec test above rejects a Gaussian VaR. That says the Gaussian is a poor tail model; it does not say whether a better model passes, or whether the rejection survives out of sample. So the question was rebuilt as a proper backtest and the criteria were fixed first (`docs/PREREG_oos_var.md`, committed before any number was computed).
+
+**Setup.** Rolling window, no look-ahead (a unit test confirms the model never sees the day it forecasts): the previous 500 returns for GULFOILLUB (250 for RELIANCE) fit the model, parameters are refit every 20 days, and the variance is filtered daily on data up to the previous day. Tests: Kupiec proportion of failures, Christoffersen independence and the conditional-coverage test (`mcsim.risk.christoffersen_tests`, `rolling_var_backtest`; models in `mcsim/garch.py`).
+
+| GULFOILLUB, 2,506 test days | 95% breaches (expected 125.3) | 99% breaches (expected 25.1) | Kupiec p (95 / 99) | Conditional coverage p (95 / 99) | Pre-registered criteria |
+|---|---|---|---|---|---|
+| GARCH(1,1)-t | 111 (4.43%) | 21 (0.84%) | 0.18 / 0.40 | 0.17 / 0.59 | **all pass** |
+| Constant-volatility Gaussian (control) | 101 (4.03%) | 42 (1.68%) | 0.021 / 0.002 | 0.006 / 0.004 | fails |
+
+**Reading it.** The constant-volatility model fails out of sample for the same reason it failed in sample: it understates risk right after volatile days, so it is breached about twice as often as it should be at 99%. A GARCH-t model lets volatility react to recent shocks and allows fat tails, and it is calibrated: breach counts match expectation and breaches do not cluster. RELIANCE (250 test days) is reported for completeness only, and its 99% test has almost no power (2 breaches vs 2.5 expected for GARCH-t, 5 for the control; neither is rejected). Verdict on the primary series: pass. No parameter was tuned after seeing a result.
+
+**What this does not show.** One stock, one model, one window length. A pass on 2,506 days says this model is not rejected there; it does not prove it is correct everywhere. The 20-day horizon VaR in the table above is still historical and unchanged.
+
 ## Limitations and what would make me wrong
 
 - Geometric Brownian motion has thin tails and constant volatility. Real returns have neither, and the Day 1 simulator does not correct for it - that is Day 2+ territory (variance reduction doesn't fix this; a fatter-tailed process would, and this repo doesn't build one).
@@ -132,7 +148,7 @@ This alignment check is itself a limitation made visible, not a problem fixed: t
 - Both `mcsim.asian` and `mcsim.barrier` price off the full path simulator (`mcsim.gbm.simulate_gbm_paths`), unlike Day 3's terminal-price shortcut - a third RNG consumption pattern in the repo alongside Day 2/3's, so none of the three are driven by common random numbers against each other even at the same seed and path count.
 - VaR is a quantile, not a worst case. The number says nothing about the shape of the loss beyond it, which is why CVaR is reported alongside.
 - The historical VaR/CVaR estimator uses overlapping horizon-day windows (481 of them at a 20-day horizon from 500 daily returns) because the fixture is too short to give more than ~25 genuinely independent 20-day observations. Overlapping windows share most of their days with their neighbours, so the empirical quantile is a real number computed from real data, but its own sampling uncertainty is understated - this is not a large-sample historical simulation.
-- The Kupiec backtest is in-sample: the same 500 historical days both fit the parametric model's mu/sigma and get backtested against it. A model can look better in-sample than it will out-of-sample by construction; this repo does not hold out a test window or walk the fit forward.
+- (Resolved for 1-day VaR by `mcsim.oosvar`, 24 Oct 2026: see the out-of-sample section below.) The original Kupiec backtest is in-sample: the same 500 historical days both fit the parametric model's mu/sigma and get backtested against it. A model can look better in-sample than it will out-of-sample by construction; this repo does not hold out a test window or walk the fit forward.
 - The Kupiec backtest only checks 1-day VaR (the horizon at which 500 days gives enough exceptions for the test to have power). It does not directly backtest the 20-day horizon VaR the table above reports - the two are linked by the same fitted mu/sigma, but a model that fails the 1-day test is not thereby proven to fail (or pass) at 20 days, only strongly suspected to.
 - One equity, one ~2-year fixture window, one realized price path. This is a distinct limitation from D20's horizon mismatch (fixed, see the Day 5 and front-door-Day-3 corrections above): even the horizon-matched comparison is still built from a single ticker's single historical path (481/2,987 overlapping 20-day windows of it, not independent draws), so agreement or disagreement with the simulation is suggestive, not a validated backtest of the drawdown distribution itself - only the VaR/CVaR side gets the Kupiec treatment, the drawdown side does not get an equivalent historical check.
 - The commodity fixture (`fixtures/commodity/WTI_futures_curve.csv`) is a static vintage from EIA's public download as of Day 6 (2022-04-04 to 2024-04-05), not a live feed - EIA's own historical `.xls` series stops at 2024-04-05, so this is genuinely the most recent free data available through it, but it will not reflect the curve shape after that date.

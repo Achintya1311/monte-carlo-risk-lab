@@ -8,6 +8,7 @@ dependencies = [
     "pandas",
     "scipy",
     "matplotlib",
+    "arch",
 ]
 
 [project.optional-dependencies]

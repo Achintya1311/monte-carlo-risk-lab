@@ -245,3 +245,80 @@ def kupiec_pof_test(daily_log_returns: np.ndarray, var_threshold: float, confide
         "p_value": p_value,
         "reject_at_5pct": p_value < 0.05,
     }
+
+
+def christoffersen_tests(exceptions: np.ndarray, confidence: float) -> dict:
+    """Christoffersen (1998) independence and conditional-coverage tests on a 0/1 exception series.
+
+    Kupiec only counts breaches. Christoffersen asks whether they arrive in clusters: if a breach makes
+    the next day's breach more likely than baseline, the model is not tracking volatility even when the
+    total count looks right. ``lr_ind`` compares a first-order Markov transition matrix with a single
+    breach probability (chi-squared, 1 df). ``lr_cc`` = Kupiec LR + ``lr_ind`` (chi-squared, 2 df).
+    """
+    e = np.asarray(exceptions, dtype=int)
+    if len(e) < 2:
+        raise ValueError("need at least 2 observations")
+    p = 1.0 - confidence
+    n = len(e)
+    x = int(e.sum())
+
+    def ll(k, m):  # log-likelihood of k events in m trials at the MLE rate, 0*log(0) = 0
+        if m == 0:
+            return 0.0
+        q = k / m
+        return (k * np.log(q) if k else 0.0) + ((m - k) * np.log(1 - q) if m - k else 0.0)
+
+    prev, cur = e[:-1], e[1:]
+    n00 = int(((prev == 0) & (cur == 0)).sum()); n01 = int(((prev == 0) & (cur == 1)).sum())
+    n10 = int(((prev == 1) & (cur == 0)).sum()); n11 = int(((prev == 1) & (cur == 1)).sum())
+    l_markov = ll(n01, n00 + n01) + ll(n11, n10 + n11)
+    l_iid = ll(n01 + n11, n00 + n01 + n10 + n11)
+    lr_ind = max(float(-2.0 * (l_iid - l_markov)), 0.0)
+
+    l_null = (n - x) * np.log(1.0 - p) + (x * np.log(p) if x else 0.0)
+    lr_pof = max(float(-2.0 * (l_null - ll(x, n))), 0.0)
+    lr_cc = lr_pof + lr_ind
+    return {
+        "n_obs": n, "n_exceptions": x, "transitions": {"n00": n00, "n01": n01, "n10": n10, "n11": n11},
+        "lr_ind": lr_ind, "p_ind": float(1.0 - chi2.cdf(lr_ind, df=1)),
+        "lr_cc": lr_cc, "p_cc": float(1.0 - chi2.cdf(lr_cc, df=2)),
+    }
+
+
+def rolling_var_backtest(returns: np.ndarray, fit_fn, window: int, refit_every: int, confidences: tuple[float, ...]) -> dict:
+    """Out-of-sample 1-day VaR backtest with no look-ahead.
+
+    Parameters are refit every ``refit_every`` days on the preceding ``window`` returns:
+    ``model = fit_fn(train)``. Every day t is then forecast as ``model.var(history, confidences)``, where
+    ``history`` is the ``window`` returns strictly before day t, so the volatility estimate can react to the
+    shocks of the days since the last refit without ever seeing day t itself.
+    """
+    r = np.asarray(returns, dtype=float)
+    if len(r) <= window:
+        raise ValueError(f"need more than {window} returns, got {len(r)}")
+    var = {c: np.full(len(r), np.nan) for c in confidences}
+    for start in range(window, len(r), refit_every):
+        model = fit_fn(r[start - window:start])
+        for t in range(start, min(start + refit_every, len(r))):
+            fc = model.var(r[t - window:t], confidences)
+            for c in confidences:
+                var[c][t] = fc[c]
+    out = {}
+    for c in confidences:
+        mask = ~np.isnan(var[c])
+        exc = (r[mask] < var[c][mask]).astype(int)
+        x, n, p = int(exc.sum()), len(exc), 1.0 - c
+        lr = k_lr(x, n, p)
+        ch = christoffersen_tests(exc, c)
+        out[c] = {"n_test": n, "n_exceptions": x, "expected_exceptions": p * n, "exception_rate": x / n,
+                  "kupiec_lr": lr, "kupiec_p": float(1.0 - chi2.cdf(lr, df=1)),
+                  "p_ind": ch["p_ind"], "lr_cc": ch["lr_cc"], "p_cc": ch["p_cc"], "transitions": ch["transitions"]}
+    return out
+
+
+def k_lr(x: int, n: int, p: float) -> float:
+    """Kupiec likelihood-ratio statistic from a breach count (shared by the rolling backtest)."""
+    x_hat = x / n
+    log_null = (n - x) * np.log(1.0 - p) + (x * np.log(p) if x else 0.0)
+    log_alt = ((n - x) * np.log(1.0 - x_hat) if x < n else 0.0) + (x * np.log(x_hat) if x else 0.0)
+    return max(float(-2.0 * (log_null - log_alt)), 0.0)
