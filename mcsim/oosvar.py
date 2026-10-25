@@ -41,6 +41,10 @@ def main(argv=None) -> int:
     ap.add_argument("--json", default=None, help="write the full result to this path")
     a = ap.parse_args(argv)
     out = run(a.fixture, a.window, a.refit_every)
+    print(
+        "Educational research on historical data. Not investment advice. "
+        "Not a SEBI-registered research analyst."
+    )
     for name in ("garch_t", "gaussian_control"):
         print(f"\n{name}  (window {a.window}, refit every {a.refit_every}, {out['n_returns'] - a.window} test days)")
         for c, v in out[name]["by_confidence"].items():

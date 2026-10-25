@@ -169,6 +169,10 @@ def main(argv: list[str] | None = None) -> int:
     result = run(args)
 
     print(f"fixture={result['fixture']} n_obs={result['n_obs']} horizon_days={result['horizon_days']} paths={result['n_paths']} seed={result['seed']}")
+    print(
+        "Educational research on historical data. Not investment advice. "
+        "Not a SEBI-registered research analyst."
+    )
     print(f"fitted daily mu={result['mu_daily']:+.6f} sigma={result['sigma_daily']:.6f}  (annualized mu={result['mu_annual']:+.4f} sigma={result['sigma_annual']:.4f})")
     print()
     print("VaR / CVaR by method and confidence (returns over the horizon, negative = loss)")

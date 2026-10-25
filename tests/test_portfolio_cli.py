@@ -111,6 +111,17 @@ def test_horizon_matched_drawdown_not_in_the_risk_contract(tmp_path):
     }
 
 
+def test_cli_prints_the_sebi_disclaimer():
+    result = run_cli(
+        "--fixture", FIXTURE, "--horizon-days", "20", "--confidence", "0.95",
+        "--paths", "20000", "--seed", "1",
+    )
+    assert (
+        "Educational research on historical data. Not investment advice. "
+        "Not a SEBI-registered research analyst."
+    ) in result.stdout
+
+
 def test_cli_rejects_invalid_confidence():
     result = run_cli(
         "--fixture", FIXTURE, "--horizon-days", "20", "--confidence", "1.5",
