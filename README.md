@@ -130,6 +130,8 @@ The in-sample Kupiec test above rejects a Gaussian VaR. That says the Gaussian i
 | GARCH(1,1)-t | 111 (4.43%) | 21 (0.84%) | 0.18 / 0.40 | 0.17 / 0.59 | **all pass** |
 | Constant-volatility Gaussian (control) | 101 (4.03%) | 42 (1.68%) | 0.021 / 0.002 | 0.006 / 0.004 | fails |
 
+All 126 GARCH refits converged (the CLI prints the count; `arch` warnings are off, so the code reads each fit's convergence flag instead). `tests/test_oosvar_cli.py` pins this table's breach counts, p-values and both verdicts, so a dependency upgrade that moves them fails CI (P79, P80).
+
 **Reading it.** The constant-volatility model fails out of sample for the same reason it failed in sample: it understates risk right after volatile days, so it is breached about twice as often as it should be at 99%. A GARCH-t model lets volatility react to recent shocks and allows fat tails, and it is calibrated: breach counts match expectation and breaches do not cluster. RELIANCE (250 test days) is reported for completeness only, and its 99% test has almost no power (2 breaches vs 2.5 expected for GARCH-t, 5 for the control; neither is rejected). Verdict on the primary series: pass. No parameter was tuned after seeing a result.
 
 **What this does not show.** One stock, one model, one window length. A pass on 2,506 days says this model is not rejected there; it does not prove it is correct everywhere. The 20-day horizon VaR in the table above is still historical and unchanged.

@@ -28,9 +28,26 @@ def run(fixture: str, window: int, refit_every: int) -> dict:
     r = load_daily_log_returns(fixture)
     out = {"fixture": fixture, "window": window, "refit_every": refit_every, "n_returns": int(len(r))}
     for name, cls in (("garch_t", GarchTModel), ("gaussian_control", GaussianModel)):
-        res = rolling_var_backtest(r, cls, window, refit_every, CONF)
-        out[name] = {"by_confidence": {str(c): v for c, v in res.items()}, "verdict": verdict(res)}
+        models = []
+
+        def fit(train, cls=cls):
+            models.append(cls(train))
+            return models[-1]
+
+        res = rolling_var_backtest(r, fit, window, refit_every, CONF)
+        out[name] = {"by_confidence": {str(c): v for c, v in res.items()}, "verdict": verdict(res),
+                     "fits": {"n_fits": len(models), "not_converged": sum(not m.converged for m in models)}}
     return out
+
+
+CRITERIA = (("kupiec_95", "Kupiec 95%"), ("kupiec_99", "Kupiec 99%"), ("cc_95", "conditional coverage 95%"),
+            ("cc_99", "conditional coverage 99%"), ("rate_99_in_band", "99% rate in 0.5-1.5%"))
+
+
+def verdict_line(v: dict) -> str:
+    """The pre-registered criteria as one readable line (P81); the dict itself stays in ``--json``."""
+    parts = ", ".join(f"{label} {'pass' if v[key] else 'FAIL'}" for key, label in CRITERIA)
+    return f"criteria: {parts}; overall: {'PASS' if v['all_pass'] else 'FAIL'}"
 
 
 def main(argv=None) -> int:
@@ -50,7 +67,9 @@ def main(argv=None) -> int:
         for c, v in out[name]["by_confidence"].items():
             print(f"  {float(c):.0%}  breaches {v['n_exceptions']}/{v['n_test']} (expected {v['expected_exceptions']:.1f}, rate {v['exception_rate']:.2%})  "
                   f"Kupiec p={v['kupiec_p']:.3f}  independence p={v['p_ind']:.3f}  conditional coverage p={v['p_cc']:.3f}")
-        print("  verdict:", {k: v for k, v in out[name]["verdict"].items()})
+        f = out[name]["fits"]
+        print(f"  fits: {f['n_fits']}, {f['not_converged']} not converged")
+        print("  " + verdict_line(out[name]["verdict"]))
     if a.json:
         with open(a.json, "w") as f:
             json.dump(out, f, indent=1)

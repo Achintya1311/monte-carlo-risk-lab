@@ -19,6 +19,7 @@ from scipy.stats import norm, t as student_t
 class GaussianModel:
     def __init__(self, train: np.ndarray):
         self.mu, self.sigma = float(np.mean(train)), float(np.std(train, ddof=1))
+        self.converged = True  # closed form, nothing to converge
 
     def var(self, history: np.ndarray, confidences) -> dict:
         return {c: self.mu + self.sigma * norm.ppf(1.0 - c) for c in confidences}
@@ -30,6 +31,7 @@ class GarchTModel:
 
         y = 100.0 * np.asarray(train, dtype=float)
         res = arch_model(y, mean="Constant", vol="GARCH", p=1, q=1, dist="t").fit(disp="off", show_warning=False)
+        self.converged = int(res.convergence_flag) == 0  # P80: warnings are off, so read the flag
         p = res.params
         self.mu, self.omega, self.alpha, self.beta, self.nu = (float(p[k]) for k in ("mu", "omega", "alpha[1]", "beta[1]", "nu"))
         self.sigma2_0 = float(np.var(y, ddof=1))
