@@ -146,8 +146,8 @@ def test_cli_default_reliance_fixture_kupiec_99pct_is_rejected_and_flagged():
 
 
 def test_cli_gulfoillub_fixture_kupiec_rejected_at_both_confidences():
-    # GULFOILLUB (the front-door subject, Day 3) has ~11 years of history
-    # (3006 obs) against RELIANCE's 2 (500 obs). More data makes the same
+    # GULFOILLUB (the front-door subject, Day 3) has about 12 years of history
+    # (3006 returns) against RELIANCE's 2 (500 obs). More data makes the same
     # Gaussian-tails problem worse, not better: both 95% and 99% are
     # rejected here, where RELIANCE's 95% was not. Recorded as-is rather
     # than tuned away -- see README limitations.
