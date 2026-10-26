@@ -62,3 +62,37 @@ def test_gulfoillub_counts_match_the_file():
     assert "3,007 daily closes" in _data_sources()
     assert "~11 years" not in text
     assert "3,006 daily closes" not in text
+
+
+# D54: the commodity fixtures. WTI_C1.csv is derived from the curve file's
+# c1 column, so the two cannot disagree; the hashes pin the vintage.
+COMMODITY = ROOT / "fixtures" / "commodity"
+COMMODITY_PINNED = {
+    "WTI_futures_curve.csv": "0629f3a7785617d333a1bf282fd308fc10dd07bc12ad64c90ff97b9e05e48142",
+    "WTI_C1.csv": "b0c368c7b51247090c8632fc37c7b21e8e7a9cbed289fa98634cf2e717200f15",
+}
+
+
+@pytest.mark.parametrize("name", sorted(COMMODITY_PINNED))
+def test_commodity_fixture_matches_the_pinned_hash(name):
+    assert _sha256(COMMODITY / name) == COMMODITY_PINNED[name]
+
+
+def test_front_month_file_is_the_curve_c1_column():
+    import csv
+
+    with open(COMMODITY / "WTI_C1.csv") as f:
+        front = [(r["date"], r["close"]) for r in csv.DictReader(f)]
+    with open(COMMODITY / "WTI_futures_curve.csv") as f:
+        curve = [(r["date"], r["c1"]) for r in csv.DictReader(f)]
+    assert front == curve
+
+
+def test_readme_says_the_front_month_file_is_derived():
+    sources = _data_sources()
+    for sha in COMMODITY_PINNED.values():
+        assert sha in sources
+    assert "the `c1` column of `WTI_futures_curve.csv`" in sources
+    assert "not committed" in sources
+    text = (ROOT / "README.md").read_text()
+    assert "holds by construction for the committed files" in text
