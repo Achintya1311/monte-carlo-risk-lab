@@ -11,7 +11,7 @@ Educational research on historical data. Not investment advice. Not a SEBI-regis
 
 Prices options and models portfolio risk by simulation, checked against closed-form solutions so the numbers are verifiable rather than merely plausible.
 
-**Status:** Complete (Sep 2026). Part of a nine-repo equity research pipeline; [STOCKSTALKER](https://github.com/Achintya1311/STOCKSTALKER) is the front door.
+**Status:** Complete (Sep 2026). Part of an eight-repo equity research pipeline (STOCKSTALKER plus seven research repos; the separate stockstalker-lab is not counted); [STOCKSTALKER](https://github.com/Achintya1311/STOCKSTALKER) is the front door.
 
 *Educational research on historical data. Not investment advice. Not a SEBI-registered research analyst.*
 
@@ -182,7 +182,7 @@ The in-sample Kupiec test above rejects a Gaussian VaR. That says the Gaussian i
 
 ## Where this sits
 
-Part of a nine-repo research pipeline. Stock Stalker screens the NSE universe; this repo publishes a versioned artifact it reads back:
+Part of an eight-repo research pipeline. Stock Stalker screens the NSE universe; this repo publishes a versioned artifact it reads back:
 
 ```json
 {
