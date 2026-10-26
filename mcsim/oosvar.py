@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from pathlib import Path
 
 from mcsim.garch import GarchTModel, GaussianModel
 from mcsim.returns import load_daily_log_returns
@@ -40,6 +41,40 @@ def run(fixture: str, window: int, refit_every: int) -> dict:
     return out
 
 
+PREREG = "docs/PREREG_oos_var.md"
+
+
+def to_contract_block(out: dict) -> dict:
+    """D36: a flat ``oos_var`` block for the spine's risk contract (one level, so the front
+    door's generic one-row-per-key renderer prints it cleanly)."""
+    g = out["garch_t"]["by_confidence"]
+    block = {"prereg": PREREG, "window": out["window"], "refit_every": out["refit_every"],
+             "n_test": g["0.99"]["n_test"], "expected_95": g["0.95"]["expected_exceptions"],
+             "expected_99": g["0.99"]["expected_exceptions"]}
+    for name, key in (("garch_t", "garch_t"), ("gaussian_control", "gaussian")):
+        m = out[name]
+        for c in ("95", "99"):
+            v = m["by_confidence"][f"0.{c}"]
+            block[f"{key}_{c}_exceptions"] = int(v["n_exceptions"])
+            block[f"{key}_{c}_kupiec_p"] = float(v["kupiec_p"])
+            block[f"{key}_{c}_cc_p"] = float(v["p_cc"])
+        block[f"{key}_all_pass"] = bool(m["verdict"]["all_pass"])
+        block[f"{key}_not_converged"] = int(m["fits"]["not_converged"])
+    return block
+
+
+def merge_into_contract(path: str, block: dict) -> None:
+    """Add ``oos_var`` to an existing ``mcsim.portfolio --contract`` file, keeping every other key."""
+    p = Path(path)
+    if not p.exists():
+        raise FileNotFoundError(f"{path}: write it with `python -m mcsim.portfolio --contract` first")
+    raw = json.loads(p.read_text())
+    if not isinstance(raw.get("risk"), dict):
+        raise ValueError(f"{path}: no 'risk' object at the top level")
+    raw["risk"]["oos_var"] = block
+    p.write_text(json.dumps(raw, indent=2) + "\n")
+
+
 CRITERIA = (("kupiec_95", "Kupiec 95%"), ("kupiec_99", "Kupiec 99%"), ("cc_95", "conditional coverage 95%"),
             ("cc_99", "conditional coverage 99%"), ("rate_99_in_band", "99% rate in 0.5-1.5%"))
 
@@ -56,6 +91,8 @@ def main(argv=None) -> int:
     ap.add_argument("--window", type=int, default=500)
     ap.add_argument("--refit-every", type=int, default=20)
     ap.add_argument("--json", default=None, help="write the full result to this path")
+    ap.add_argument("--contract", default=None, metavar="PATH",
+                    help="merge a flat oos_var block into this existing mcsim.portfolio --contract file")
     a = ap.parse_args(argv)
     out = run(a.fixture, a.window, a.refit_every)
     print(
@@ -70,6 +107,12 @@ def main(argv=None) -> int:
         f = out[name]["fits"]
         print(f"  fits: {f['n_fits']}, {f['not_converged']} not converged")
         print("  " + verdict_line(out[name]["verdict"]))
+    if a.contract:
+        try:
+            merge_into_contract(a.contract, to_contract_block(out))
+        except (FileNotFoundError, ValueError) as exc:
+            ap.error(str(exc))
+        print(f"\noos_var block merged into {a.contract}")
     if a.json:
         with open(a.json, "w") as f:
             json.dump(out, f, indent=1)

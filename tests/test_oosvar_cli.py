@@ -1,3 +1,7 @@
+import json
+
+import pytest
+
 from mcsim import oosvar
 
 
@@ -59,3 +63,30 @@ def test_cli_prints_a_readable_verdict_and_fit_count(capsys):
     assert "criteria: Kupiec 95% " in out and "conditional coverage 99% " in out and "99% rate in 0.5-1.5% " in out
     assert "overall: " in out
     assert "fits: " in out and " not converged" in out
+
+
+def test_contract_merges_a_flat_oos_var_block_into_the_risk_contract(tmp_path):
+    # D36: the front door reads this block; the existing risk keys must survive the merge.
+    path = tmp_path / "risk.json"
+    path.write_text('{"risk": {"var_95": -0.1, "cvar_95": -0.2, "max_dd_sim": -0.05, "horizon_days": 20}}')
+    oosvar.main(["--fixture", "fixtures/ohlcv/RELIANCE_NS.csv", "--window", "250", "--refit-every", "50",
+                 "--contract", str(path)])
+    risk = json.loads(path.read_text())["risk"]
+    assert risk["var_95"] == -0.1 and risk["horizon_days"] == 20
+    block = risk["oos_var"]
+    assert block["prereg"] == "docs/PREREG_oos_var.md"
+    assert block["window"] == 250 and block["refit_every"] == 50 and block["n_test"] == 250
+    assert not any(isinstance(v, dict) for v in block.values())
+    for model in ("garch_t", "gaussian"):
+        for c in ("95", "99"):
+            assert isinstance(block[f"{model}_{c}_exceptions"], int)
+            assert 0.0 <= block[f"{model}_{c}_kupiec_p"] <= 1.0 and 0.0 <= block[f"{model}_{c}_cc_p"] <= 1.0
+        assert isinstance(block[f"{model}_all_pass"], bool)
+        assert block[f"{model}_not_converged"] == 0
+    assert block["expected_99"] == pytest.approx(2.5)
+
+
+def test_contract_refuses_a_file_without_a_risk_block(tmp_path):
+    with pytest.raises(SystemExit):
+        oosvar.main(["--fixture", "fixtures/ohlcv/RELIANCE_NS.csv", "--window", "250", "--refit-every", "50",
+                     "--contract", str(tmp_path / "missing.json")])
