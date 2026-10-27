@@ -1,6 +1,11 @@
-"""CLI: portfolio risk - VaR/CVaR at 95%/99% by three methods side by side,
+"""CLI: single-stock risk - VaR/CVaR at 95%/99% by three methods side by side,
 a Monte Carlo max-drawdown distribution, and a Kupiec backtest of the
 1-day parametric VaR against the historical sample.
+
+P126 (CRITIQUES.md): every run reads one fixture, one return series, so
+this is one position's risk; there are no weights or covariance. The
+module name ``mcsim.portfolio`` stays because STOCKSTALKER, the README
+and the risk contract's provenance all call it by that name.
 
     python -m mcsim.portfolio --fixture fixtures/ohlcv/RELIANCE_NS.csv \\
         --horizon-days 20 --confidence 0.95 0.99 --paths 1000000 --seed 42 \\
@@ -38,7 +43,7 @@ DEFAULT_SPOT = 100.0  # VaR/CVaR are returns, so the normalization level is arbi
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Portfolio VaR/CVaR (historical, parametric, Monte Carlo) and a drawdown distribution."
+        description="Single-stock VaR/CVaR (historical, parametric, Monte Carlo) and a drawdown distribution."
     )
     parser.add_argument(
         "--fixture", type=str, default="fixtures/ohlcv/RELIANCE_NS.csv",
