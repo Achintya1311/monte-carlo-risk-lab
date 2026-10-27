@@ -18,6 +18,8 @@ import json
 import sys
 from pathlib import Path
 
+import numpy as np
+
 from mcsim.returns import annualize, load_closes, load_daily_log_returns
 from mcsim.risk import (
     drawdown_distribution_stats,
@@ -100,6 +102,22 @@ def run(args: argparse.Namespace) -> dict:
     if args.drawdown_plot:
         plot_drawdown_distribution(drawdowns, args.drawdown_plot)
 
+    # P125 (CRITIQUES.md): the fitted mean is a noisy estimate (its standard
+    # error is sigma/sqrt(years)), and it shifts parametric VaR by
+    # mu*h and tilts every simulated path. Report the zero-drift version beside it.
+    zero_paths = simulate_risk_paths(
+        spot=DEFAULT_SPOT, mu_annual=0.0, sigma_annual=sigma_annual,
+        horizon_days=args.horizon_days, n_paths=args.paths, seed=args.seed,
+    )
+    zero_drift = {
+        "by_confidence": [
+            {"confidence": c, "parametric": parametric_var_cvar(0.0, sigma_daily, c, args.horizon_days)}
+            for c in args.confidence
+        ],
+        "drawdown_mean": drawdown_distribution_stats(max_drawdowns(zero_paths))["mean"],
+        "mu_annual_standard_error": sigma_annual / float(np.sqrt(len(log_returns) / 252)),
+    }
+
     return {
         "fixture": args.fixture,
         "n_obs": len(log_returns),
@@ -115,6 +133,7 @@ def run(args: argparse.Namespace) -> dict:
         "realized_max_drawdown": realized_max_dd,
         "realized_drawdown_horizon_matched": realized_dd_horizon_matched,
         "drawdown_plot": args.drawdown_plot,
+        "zero_drift": zero_drift,
     }
 
 
@@ -198,6 +217,20 @@ def main(argv: list[str] | None = None) -> int:
         f"{hm['n_windows']} overlapping): mean={hm['mean']:+.4f} worst={hm['worst']:+.4f}"
     )
 
+    zd = result["zero_drift"]
+    print()
+    print(
+        f"Zero-drift check (P125): the fitted mu {result['mu_annual']:+.4f}/yr has a standard error of about "
+        f"{zd['mu_annual_standard_error']:.4f}/yr ({result['mu_annual'] / zd['mu_annual_standard_error']:+.1f} standard errors from zero)"
+    )
+    fitted = {row["confidence"]: row["parametric"] for row in result["by_confidence"]}
+    for row in zd["by_confidence"]:
+        c = row["confidence"]
+        print(
+            f"{c:>6.0%} parametric VaR {fitted[c]['var']:.4f} fitted drift, {row['parametric']['var']:.4f} zero drift; "
+            f"CVaR {fitted[c]['cvar']:.4f} vs {row['parametric']['cvar']:.4f}"
+        )
+    print(f"simulated max-drawdown mean {result['drawdown_stats']['mean']:.4f} fitted drift, {zd['drawdown_mean']:.4f} zero drift")
     print()
     print("Kupiec proportion-of-failures backtest (1-day parametric VaR vs full historical sample, in-sample)")
     ok = True
