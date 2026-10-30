@@ -203,6 +203,26 @@ def plot_drawdown_distribution(drawdowns: np.ndarray, out_path: str) -> None:
     plt.close(fig)
 
 
+def holm_adjust(p_values: list[float]) -> list[float]:
+    """Holm (1979) step-down adjusted p-values, in the input order.
+
+    Sort ascending, multiply the k-th smallest (0-based) by ``m - k``, carry
+    the running maximum so adjusted values never decrease, cap at 1. A test
+    is rejected at level alpha when its adjusted p-value is below alpha; this
+    controls the family-wise error rate across all ``m`` tests (P151).
+    """
+    if any(not 0 <= p <= 1 for p in p_values):
+        raise ValueError(f"p-values must be in [0, 1], got {p_values}")
+    m = len(p_values)
+    order = sorted(range(m), key=lambda i: p_values[i])
+    adjusted = [0.0] * m
+    running = 0.0
+    for rank, i in enumerate(order):
+        running = max(running, min(1.0, (m - rank) * p_values[i]))
+        adjusted[i] = running
+    return adjusted
+
+
 def kupiec_pof_test(daily_log_returns: np.ndarray, var_threshold: float, confidence: float) -> dict:
     """Kupiec (1995) proportion-of-failures backtest for a 1-day VaR model.
 

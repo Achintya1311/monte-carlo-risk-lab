@@ -29,6 +29,7 @@ from mcsim.returns import annualize, load_closes, load_daily_log_returns
 from mcsim.risk import (
     drawdown_distribution_stats,
     historical_var_cvar,
+    holm_adjust,
     kupiec_pof_test,
     max_drawdowns,
     mc_var_cvar_from_paths,
@@ -249,6 +250,12 @@ def main(argv: list[str] | None = None) -> int:
         )
         if k["reject_at_5pct"]:
             ok = False
+    if len(result["by_confidence"]) > 1:
+        adjusted = holm_adjust([row["kupiec"]["p_value"] for row in result["by_confidence"]])
+        print(
+            f"Holm-adjusted across these {len(adjusted)} levels (P151): "
+            + ", ".join(f"{row['confidence']:.0%} p={p:.4f}" for row, p in zip(result["by_confidence"], adjusted))
+        )
 
     if not ok:
         print(
