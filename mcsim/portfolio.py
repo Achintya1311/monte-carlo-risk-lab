@@ -29,6 +29,7 @@ from mcsim.returns import annualize, load_closes, load_daily_log_returns
 from mcsim.risk import (
     drawdown_distribution_stats,
     historical_var_cvar,
+    historical_var_cvar_interval,
     holm_adjust,
     kupiec_pof_test,
     max_drawdowns,
@@ -90,6 +91,7 @@ def run(args: argparse.Namespace) -> dict:
     by_confidence = []
     for c in args.confidence:
         hist = historical_var_cvar(log_returns, c, args.horizon_days)
+        hist_interval = historical_var_cvar_interval(log_returns, c, args.horizon_days, seed=args.seed)
         param = parametric_var_cvar(mu_daily, sigma_daily, c, args.horizon_days)
         mc = mc_var_cvar_from_paths(paths, DEFAULT_SPOT, c)
 
@@ -97,7 +99,8 @@ def run(args: argparse.Namespace) -> dict:
         kupiec = kupiec_pof_test(log_returns, var_1day, c)
 
         by_confidence.append(
-            {"confidence": c, "historical": hist, "parametric": param, "mc": mc, "kupiec": kupiec, "var_1day": var_1day}
+            {"confidence": c, "historical": hist, "parametric": param, "mc": mc, "kupiec": kupiec, "var_1day": var_1day,
+             "hist_interval": hist_interval}
         )
 
     drawdowns = max_drawdowns(paths)
@@ -207,6 +210,12 @@ def main(argv: list[str] | None = None) -> int:
         for method in ("historical", "parametric", "mc"):
             m = row[method]
             print(f"{c:>6.0%} {method:>12} {m['var']:>9.4f} {m['cvar']:>9.4f}")
+            if method == "historical":
+                iv = row["hist_interval"]
+                print(
+                    f"{'':>6} {'':>12} [{iv['var_low']:.4f}, {iv['var_high']:.4f}] [{iv['cvar_low']:.4f}, {iv['cvar_high']:.4f}]"
+                    f"  {iv['level']:.0%} moving-block bootstrap (block {iv['block']}d, {iv['n_boot']} draws, P152)"
+                )
 
     print()
     print("Monte Carlo max-drawdown distribution over the horizon")

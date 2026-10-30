@@ -59,6 +59,57 @@ def historical_var_cvar(daily_log_returns: np.ndarray, confidence: float, horizo
     return {"var": var, "cvar": cvar, "n_windows": n_windows, "overlapping": True}
 
 
+def historical_var_cvar_interval(
+    daily_log_returns: np.ndarray,
+    confidence: float,
+    horizon_days: int,
+    n_boot: int = 2000,
+    level: float = 0.90,
+    seed: int = 0,
+) -> dict:
+    """Moving-block bootstrap interval for ``historical_var_cvar`` (P152).
+
+    Resamples the daily series in contiguous blocks of ``horizon_days``
+    (so each block keeps one horizon's worth of autocorrelation), rebuilds a
+    series of the original length, reruns the historical estimator and
+    takes the central ``level`` percentile interval of the replicates. With
+    ~25 independent 20-day windows in a 500-day fixture this is the honest
+    width of the point estimate the overlapping windows hide. Seeded, so the
+    same inputs always give the same interval.
+    """
+    if not 0 < level < 1:
+        raise ValueError(f"level must be in (0, 1), got {level}")
+    if n_boot <= 0:
+        raise ValueError(f"n_boot must be positive, got {n_boot}")
+    returns = np.asarray(daily_log_returns, dtype=float)
+    historical_var_cvar(returns, confidence, horizon_days)  # validates inputs
+
+    n = len(returns)
+    block = horizon_days
+    n_blocks = -(-n // block)
+    starts_max = n - block + 1
+    rng = np.random.default_rng(seed)
+    offsets = np.arange(block)
+    vars_, cvars = np.empty(n_boot), np.empty(n_boot)
+    for b in range(n_boot):
+        starts = rng.integers(0, starts_max, n_blocks)
+        sample = returns[(starts[:, None] + offsets).ravel()[:n]]
+        est = historical_var_cvar(sample, confidence, horizon_days)
+        vars_[b], cvars[b] = est["var"], est["cvar"]
+
+    lo, hi = (1 - level) / 2, 1 - (1 - level) / 2
+    return {
+        "var_low": float(np.quantile(vars_, lo)),
+        "var_high": float(np.quantile(vars_, hi)),
+        "cvar_low": float(np.quantile(cvars, lo)),
+        "cvar_high": float(np.quantile(cvars, hi)),
+        "level": level,
+        "block": block,
+        "n_boot": n_boot,
+        "seed": seed,
+    }
+
+
 def parametric_var_cvar(mu_daily: float, sigma_daily: float, confidence: float, horizon_days: int) -> dict:
     """Closed-form Gaussian VaR and expected shortfall (CVaR), horizon-scaled.
 
