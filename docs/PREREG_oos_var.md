@@ -1,5 +1,7 @@
 # Pre-registration: out-of-sample VaR backtest (written before any result was computed)
 
+Educational research on historical data. Not investment advice. Not a SEBI-registered research analyst.
+
 **Why.** The v1 Kupiec test fits one constant-volatility Gaussian on the whole sample and tests it on the same data. That is in-sample, ignores volatility clustering and fat tails, and does not test the independence of breaches. The rejection it produced says the Gaussian is a poor tail model. It does not say whether a better model passes. This test asks that question honestly.
 
 **Fixed in advance, no tuning afterwards:**

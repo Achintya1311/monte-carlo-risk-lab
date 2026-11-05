@@ -235,8 +235,14 @@ def drawdown_distribution_stats(drawdowns: np.ndarray) -> dict:
     }
 
 
-def plot_drawdown_distribution(drawdowns: np.ndarray, out_path: str) -> None:
-    """Write a histogram of the simulated per-path max-drawdown distribution."""
+def plot_drawdown_distribution(
+    drawdowns: np.ndarray, out_path: str, ticker: str | None = None, horizon_days: int | None = None
+) -> str:
+    """Write a histogram of the simulated per-path max-drawdown distribution.
+
+    The title names the stock, horizon and path count (P169), so a copy of the
+    chart says what it describes. Returns the title.
+    """
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -247,11 +253,17 @@ def plot_drawdown_distribution(drawdowns: np.ndarray, out_path: str) -> None:
     ax.axvline(float(drawdowns.min()), color="firebrick", linestyle=":", label=f"worst = {drawdowns.min():.2%}")
     ax.set_xlabel("max drawdown over horizon")
     ax.set_ylabel("simulated paths")
-    ax.set_title("Monte Carlo max-drawdown distribution")
+    subject = [ticker] if ticker else []
+    if horizon_days:
+        subject.append(f"{horizon_days}-day horizon")
+    subject.append(f"{len(drawdowns):,} paths")
+    title = f"Monte Carlo max-drawdown distribution: {', '.join(subject)}"
+    ax.set_title(title)
     ax.legend()
     fig.tight_layout()
     fig.savefig(out_path, dpi=150)
     plt.close(fig)
+    return title
 
 
 def holm_adjust(p_values: list[float]) -> list[float]:

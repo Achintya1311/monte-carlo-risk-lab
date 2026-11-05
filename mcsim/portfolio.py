@@ -108,8 +108,12 @@ def run(args: argparse.Namespace) -> dict:
     realized_max_dd = float(max_drawdowns(closes.reshape(1, -1))[0])
     realized_dd_horizon_matched = realized_drawdown_horizon_matched(closes, args.horizon_days)
 
+    chart_title = None
     if args.drawdown_plot:
-        plot_drawdown_distribution(drawdowns, args.drawdown_plot)
+        chart_title = plot_drawdown_distribution(
+            drawdowns, args.drawdown_plot,
+            ticker=Path(args.fixture).stem.removesuffix("_NS"), horizon_days=args.horizon_days,
+        )
 
     # P125 (CRITIQUES.md): the fitted mean is a noisy estimate (its standard
     # error is sigma/sqrt(years)), and it shifts parametric VaR by
@@ -142,6 +146,7 @@ def run(args: argparse.Namespace) -> dict:
         "realized_max_drawdown": realized_max_dd,
         "realized_drawdown_horizon_matched": realized_dd_horizon_matched,
         "drawdown_plot": args.drawdown_plot,
+        "drawdown_plot_title": chart_title,
         "zero_drift": zero_drift,
     }
 
@@ -275,6 +280,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if result["drawdown_plot"]:
         print(f"wrote drawdown distribution plot ({dd['n_paths']} paths) to {result['drawdown_plot']}")
+        print(f"chart title: {result['drawdown_plot_title']}")
 
     if args.contract:
         contract_path = Path(args.contract)

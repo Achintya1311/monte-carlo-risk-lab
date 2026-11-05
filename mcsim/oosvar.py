@@ -95,6 +95,7 @@ def main(argv=None) -> int:
                     help="merge a flat oos_var block into this existing mcsim.portfolio --contract file")
     a = ap.parse_args(argv)
     out = run(a.fixture, a.window, a.refit_every)
+    print(f"fixture={a.fixture}")
     print(
         "Educational research on historical data. Not investment advice. "
         "Not a SEBI-registered research analyst."
